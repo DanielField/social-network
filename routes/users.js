@@ -89,9 +89,12 @@ router.post('/login', (req,res) => {
 
         if (result.length > 0) {
             if (bcrypt.compareSync(form_data.password, result[0].password)) {
-                // Success.
-                // TODO: Generate user token.
-                res.send('success');
+                let user = Object.assign({},result[0]);
+                console.log(user);
+
+                // Generate token and send it.
+                let token = jsonwebtoken.sign(user, process.env.SECRET_KEY, { expiresIn: '7d' });
+                res.send(token);
             } else {
                 res.status(400).send('Error: Invalid credentials.');
             }
