@@ -17,28 +17,28 @@ const SELECT_ALL = "SELECT * FROM users;";
 
 /* GET users listing. */
 router.get('/', (req, res) => {
-    authenticate.confirmLoggedIn(req.headers['authorization']).then((is_logged_in) => {
-        if (is_logged_in) {
-            database.query(SELECT_ALL, (err, result) => {
-                res.send(result);
-            });
-        } else {
-            res.status(403).send("You are not permitted to access this resource.");
-        }
+    authenticate.doIfLoggedIn(req, res, () => {
+        database.query(SELECT_ALL, (err, result) => {
+            res.send(result);
+        });
     });
 });
 
 /* GET user by username. */
 router.get('/:username', (req, res) => {
-    database.query(`SELECT * FROM users WHERE username='${req.params.username}';`, (err, result) => {
-        res.send(result);
+    authenticate.doIfLoggedIn(req, res, () => {
+        database.query(`SELECT * FROM users WHERE username='${req.params.username}';`, (err, result) => {
+            res.send(result);
+        });
     });
 });
 
 /* GET user by ID. */
 router.get('/id/:user_id', (req, res) => {
-    database.query(`SELECT * FROM users WHERE user_id='${req.params.user_id}';`, (err, result) => {
-        res.send(result);
+    authenticate.doIfLoggedIn(req, res, () => {
+        database.query(`SELECT * FROM users WHERE user_id='${req.params.user_id}';`, (err, result) => {
+            res.send(result);
+        });
     });
 });
 
@@ -76,7 +76,7 @@ router.post('/register', (req, res, next) => {
                 let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
 
                 let query = "INSERT INTO users (username,password,is_admin,date_created,date_last_login,first_name,last_name) " +
-                            `VALUES ('${form_data.username}','${hash}',0,'${currentDate}','${currentDate}','${form_data.first_name}','${form_data.last_name}');`;
+                    `VALUES ('${form_data.username}','${hash}',0,'${currentDate}','${currentDate}','${form_data.first_name}','${form_data.last_name}');`;
 
                 database.query(query, (err, result) => {
                     if (err) {
@@ -91,7 +91,7 @@ router.post('/register', (req, res, next) => {
     });
 });
 
-router.post('/login', (req,res) => {
+router.post('/login', (req, res) => {
     if (Object.keys(req.body).length === 0) {
         res.status(400).send("Invalid POST request.");
         return;
@@ -110,7 +110,7 @@ router.post('/login', (req,res) => {
 
         if (result.length > 0) {
             if (bcrypt.compareSync(form_data.password, result[0].password)) {
-                let user = Object.assign({},result[0]);
+                let user = Object.assign({}, result[0]);
 
                 // Generate token
                 let token = jsonwebtoken.sign(user, process.env.SECRET_KEY, { expiresIn: '7d' });
@@ -141,36 +141,40 @@ router.post('/login', (req,res) => {
 });
 
 router.post('/update', (req, res) => {
-    if (Object.keys(req.body).length === 0) {
-        res.status(400).send("Invalid POST request.");
-        return;
-    }
-
-    let form_data = {
-        user_id: req.body.user_id,
-        username: req.body.username,
-        first_name: req.body.first_name,
-        last_name: req.body.last_name
-    };
-
-    database.query(`UPDATE users SET username='${form_data.username}',first_name='${form_data.first_name}',last_name='${form_data.last_name}' WHERE user_id='${form_data.user_id}';`, (err, result) => {
-        if (err) {
-            res.status(400).send('Error: Unable to update user information.');
-        } else {
-            console.log(`Updated info for user: ${form_data.user_id}`);
-            res.send(`Updated user info for user ${form_data.user_id} (${form_data.username})`);
+    authenticate.doIfLoggedIn(req, res, () => {
+        if (Object.keys(req.body).length === 0) {
+            res.status(400).send("Invalid POST request.");
+            return;
         }
+
+        let form_data = {
+            user_id: req.body.user_id,
+            username: req.body.username,
+            first_name: req.body.first_name,
+            last_name: req.body.last_name
+        };
+
+        database.query(`UPDATE users SET username='${form_data.username}',first_name='${form_data.first_name}',last_name='${form_data.last_name}' WHERE user_id='${form_data.user_id}';`, (err, result) => {
+            if (err) {
+                res.status(400).send('Error: Unable to update user information.');
+            } else {
+                console.log(`Updated info for user: ${form_data.user_id}`);
+                res.send(`Updated user info for user ${form_data.user_id} (${form_data.username})`);
+            }
+        });
     });
 });
 
 router.delete('/delete/:user_id', (req, res) => {
-    database.query(`DELETE FROM users WHERE user_id='${req.params.user_id}';`, (err, result) => {
-        if (err) {
-            res.status(400).send('Error: Unable to delete user.');
-        } else {
-            console.log(`Deleted user: ${req.params.user_id}`);
-            res.send(`Deleted user ${req.params.user_id}`);
-        }
+    authenticate.doIfLoggedIn(req, res, () => {
+        database.query(`DELETE FROM users WHERE user_id='${req.params.user_id}';`, (err, result) => {
+            if (err) {
+                res.status(400).send('Error: Unable to delete user.');
+            } else {
+                console.log(`Deleted user: ${req.params.user_id}`);
+                res.send(`Deleted user ${req.params.user_id}`);
+            }
+        });
     });
 });
 
