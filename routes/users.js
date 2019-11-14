@@ -2,6 +2,8 @@ var express = require('express');
 var cors = require('cors');
 var bcrypt = require('bcrypt');
 var jsonwebtoken = require('jsonwebtoken');
+var authenticate = require('../authenticate');
+var database = require('../database');
 
 var router = express.Router();
 
@@ -12,11 +14,30 @@ router.use(cors());
 process.env.SECRET_KEY = 'secret';
 
 const SELECT_ALL = "SELECT * FROM users;";
-const SELECT_ONE = "SELECT * FROM users WHERE user_id={0};";
 
 /* GET users listing. */
 router.get('/', (req, res) => {
-    database.query(SELECT_ALL, (err, result) => {
+    authenticate.confirmLoggedIn(req.headers['authorization']).then((is_logged_in) => {
+        if (is_logged_in) {
+            database.query(SELECT_ALL, (err, result) => {
+                res.send(result);
+            });
+        } else {
+            res.status(403).send("You are not permitted to access this resource.");
+        }
+    });
+});
+
+/* GET user by username. */
+router.get('/:username', (req, res) => {
+    database.query(`SELECT * FROM users WHERE username='${req.params.username}';`, (err, result) => {
+        res.send(result);
+    });
+});
+
+/* GET user by ID. */
+router.get('/id/:user_id', (req, res) => {
+    database.query(`SELECT * FROM users WHERE user_id='${req.params.user_id}';`, (err, result) => {
         res.send(result);
     });
 });
@@ -90,10 +111,24 @@ router.post('/login', (req,res) => {
         if (result.length > 0) {
             if (bcrypt.compareSync(form_data.password, result[0].password)) {
                 let user = Object.assign({},result[0]);
-                console.log(user);
 
-                // Generate token and send it.
+                // Generate token
                 let token = jsonwebtoken.sign(user, process.env.SECRET_KEY, { expiresIn: '7d' });
+
+                // Get the current date in YYYY/MM/DD format
+                let date = new Date();
+                let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
+
+                // update date_last_login
+                database.query(`UPDATE users SET date_last_login='${currentDate}' WHERE username='${form_data.username}';`, (err, result) => {
+                    if (err) {
+                        res.status(400).send("Error: Unable to set date_last_login to current date.");
+                    }
+                });
+
+                console.log(`Login from user '${user.username}'`);
+
+                // send user token
                 res.send(token);
             } else {
                 res.status(400).send('Error: Invalid credentials.');
@@ -104,5 +139,41 @@ router.post('/login', (req,res) => {
         }
     });
 });
+
+router.post('/update', (req, res) => {
+    if (Object.keys(req.body).length === 0) {
+        res.status(400).send("Invalid POST request.");
+        return;
+    }
+
+    let form_data = {
+        user_id: req.body.user_id,
+        username: req.body.username,
+        first_name: req.body.first_name,
+        last_name: req.body.last_name
+    };
+
+    database.query(`UPDATE users SET username='${form_data.username}',first_name='${form_data.first_name}',last_name='${form_data.last_name}' WHERE user_id='${form_data.user_id}';`, (err, result) => {
+        if (err) {
+            res.status(400).send('Error: Unable to update user information.');
+        } else {
+            console.log(`Updated info for user: ${form_data.user_id}`);
+            res.send(`Updated user info for user ${form_data.user_id} (${form_data.username})`);
+        }
+    });
+});
+
+router.delete('/delete/:user_id', (req, res) => {
+    database.query(`DELETE FROM users WHERE user_id='${req.params.user_id}';`, (err, result) => {
+        if (err) {
+            res.status(400).send('Error: Unable to delete user.');
+        } else {
+            console.log(`Deleted user: ${req.params.user_id}`);
+            res.send(`Deleted user ${req.params.user_id}`);
+        }
+    });
+});
+
+// TODO: change password route
 
 module.exports = router;

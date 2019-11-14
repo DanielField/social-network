@@ -3,7 +3,7 @@ var express = require('express');
 var path = require('path');
 var cookieParser = require('cookie-parser');
 var logger = require('morgan');
-var mysql = require('mysql');
+var database = require('./database');
 
 var indexRouter = require('./routes/index');
 var usersRouter = require('./routes/users');
@@ -22,26 +22,6 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
-
-// Setup the database connection
-const database = mysql.createConnection({
-    host: 'localhost',
-    user: 'root',
-    password: 'toor',
-    database: 'socialnetwork'
-});
-
-database.connect((err) => {
-    // Error occurred
-    if (err) {
-        console.log("An error occurred while trying to connect to the database. Exiting the application...");
-        process.exit(1);
-    }
-    // Connected
-    console.log("Connection to database has been established.");
-});
-
-global.database = database;
 
 // catch 404 and forward to error handler
 app.use(function(req, res, next) {
