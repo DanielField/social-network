@@ -18,7 +18,7 @@ process.env.SECRET_KEY = 'secret';
 /* GET users listing. */
 router.get('/', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        users.getUsers().then((result) => {
+        users.getDocuments("users").then((result) => {
             console.log(result);
             res.json(result);
         }).catch(err => console.error(err));
@@ -28,7 +28,7 @@ router.get('/', (req, res) => {
 /* GET user by username. */
 router.get('/:username', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        users.getUser({username: req.params.username}).then((result) => {
+        users.getDocument("users", { username: req.params.username }).then((result) => {
             console.log(result);
             res.json(result);
         }).catch(err => console.error(err));
@@ -38,7 +38,7 @@ router.get('/:username', (req, res) => {
 /* GET user by ID. */
 router.get('/id/:_id', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        users.getUser({ _id: new MongoDB.ObjectID(req.params._id) }).then((result) => {
+        users.getDocument("users", { _id: new MongoDB.ObjectID(req.params._id) }).then((result) => {
             res.json(result);
         }).catch(err => console.error(err));
     });
@@ -57,23 +57,23 @@ router.post('/register', (req, res, next) => {
         last_name: req.body.last_name
     };
 
-    users.getUser({username: form_data.username}).then((result) => {
+    users.getDocument({ username: form_data.username }).then((result) => {
         console.log(result);
         if (result) {
-            res.status(400).json({Error:'User already exists'});
+            res.status(400).json({ Error: 'User already exists' });
         } else {
             bcrypt.hash(form_data.password, bcrypt.genSaltSync(10), (err, hash) => {
                 if (err) {
-                    res.status(400).json({Error: 'Failed to set password'});
+                    res.status(400).json({ Error: 'Failed to set password' });
                 } else {
                     let date = new Date();
                     let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
-    
-                    users.insertUser({
-                        username: form_data.username, 
-                        password: hash, 
-                        is_admin: 0, 
-                        date_created: currentDate, 
+
+                    users.insertDocument("users", {
+                        username: form_data.username,
+                        password: hash,
+                        is_admin: 0,
+                        date_created: currentDate,
                         date_last_login: currentDate,
                         first_name: form_data.first_name,
                         last_name: form_data.last_name
@@ -105,7 +105,7 @@ router.post('/login', (req, res) => {
         password: req.body.password
     };
 
-    users.getUser({username: form_data.username}).then((user) => {
+    users.getDocument("users", { username: form_data.username }).then((user) => {
         if (user) {
             if (bcrypt.compareSync(form_data.password, user.password)) {
                 // Generate token
@@ -115,7 +115,7 @@ router.post('/login', (req, res) => {
                 let date = new Date();
                 let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
 
-                users.updateUser({username: form_data.username}, {date_last_login: currentDate}).then(() => {
+                users.updateDocument("users", { username: form_data.username }, { date_last_login: currentDate }).then(() => {
                     console.log(`Login from user '${user.username}'`);
                     res.send(token);
                 }).catch(() => res.status(400).send("Error: Unable to login."));
@@ -134,32 +134,50 @@ router.post('/update/:username', (req, res) => {
             username: req.body.username,
             first_name: req.body.first_name,
             last_name: req.body.last_name
-        };
+        }
 
-        users.updateUser({username: req.params.username}, form_data).then(result => {
-            console.log(`Updated info for user: ${req.params.username}`);
-            res.json(result);
-        }).catch(() => res.status(400).send('Error: Unable to update user information.'));
+        var decoded_token = jsonwebtoken.verify(req.headers['authorization'], process.env.SECRET_KEY);
+
+        if (decoded_token.username === req.params.username) {
+            users.updateDocument("users", { username: req.params.username }, form_data).then(result => {
+                console.log(`Updated info for user: ${req.params.username}`);
+                res.json(result);
+            }).catch(() => res.status(400).send('Error: Unable to update user information.'));
+        } else {
+            res.status(400).send('Error: You can only update your own user account.');
+        }
     });
 });
 
 router.post('/update/password/:username', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        bcrypt.hash(req.body.password, bcrypt.genSaltSync(10), (err, hash) => {
-            users.updateUser({username: req.params.username}, {password: hash}).then(result => {
-                console.log(`Updated info for user: ${req.params.username}`);
-                res.json(result);
-            }).catch(() => res.status(400).send('Error: Unable to update user information.'));
-        });
+        var decoded_token = jsonwebtoken.verify(req.headers['authorization'], process.env.SECRET_KEY);
+
+        if (decoded_token.username === req.params.username) {
+            bcrypt.hash(req.body.password, bcrypt.genSaltSync(10), (err, hash) => {
+                users.updateDocument("users", { username: req.params.username }, { password: hash }).then(result => {
+                    console.log(`Updated info for user: ${req.params.username}`);
+                    res.json(result);
+                }).catch(() => res.status(400).send('Error: Unable to update user information.'));
+            });
+        } else {
+            res.status(400).send('Error: You can only update your own user account.');
+        }
     });
 });
 
 router.delete('/delete/:username', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        users.deleteUser({username: req.params.username}).then(result => {
-            console.log(`Deleted user: ${req.params.username}`);
-            res.json({status: `Deleted user: ${req.params.username}`});
-        }).catch(() => res.status(400).send('Error: Unable to delete user.'));
+        var decoded_token = jsonwebtoken.verify(req.headers['authorization'], process.env.SECRET_KEY);
+
+        if (decoded_token.username === req.params.username) {
+            users.deleteDocument("users", { username: req.params.username }).then(result => {
+                console.log(`Deleted user: ${req.params.username}`);
+                res.json({ status: `Deleted user: ${req.params.username}` });
+            }).catch(() => res.status(400).send('Error: Unable to delete user.'));
+        } else {
+            res.status(400).send('Error: You can only delete your own user account.');
+        }
     });
 });
 
