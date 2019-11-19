@@ -6,6 +6,7 @@ var logger = require('morgan');
 var database = require('./database/database');
 
 var indexRouter = require('./routes/index');
+var postsRouter = require('./routes/posts');
 var usersRouter = require('./routes/users');
 
 var app = express();
@@ -22,6 +23,7 @@ app.use(express.static(path.join(__dirname, 'public')));
 
 app.use('/', indexRouter);
 app.use('/users', usersRouter);
+app.use('/posts', postsRouter);
 
 // test the database connection
 database.testConnection().then(() => console.log(`Database connection successful`)).catch((err) => console.error(err));

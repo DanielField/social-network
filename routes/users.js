@@ -4,7 +4,7 @@ var bcrypt = require('bcrypt');
 var jsonwebtoken = require('jsonwebtoken');
 var authenticate = require('../authenticate');
 var database = require('../database/database');
-var users = require('../database/queries/users');
+var query = require('../database/queries');
 var MongoDB = require('mongodb');
 
 var router = express.Router();
@@ -15,10 +15,12 @@ router.use(cors());
 // This should be changed to something less obvious
 process.env.SECRET_KEY = 'secret';
 
+const COLLECTION = "users";
+
 /* GET users listing. */
 router.get('/', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        users.getDocuments("users").then((result) => {
+        query.getDocuments(COLLECTION).then((result) => {
             console.log(result);
             res.json(result);
         }).catch(err => console.error(err));
@@ -28,7 +30,7 @@ router.get('/', (req, res) => {
 /* GET user by username. */
 router.get('/:username', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        users.getDocument("users", { username: req.params.username }).then((result) => {
+        query.getDocument(COLLECTION, { username: req.params.username }).then((result) => {
             console.log(result);
             res.json(result);
         }).catch(err => console.error(err));
@@ -38,7 +40,7 @@ router.get('/:username', (req, res) => {
 /* GET user by ID. */
 router.get('/id/:_id', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        users.getDocument("users", { _id: new MongoDB.ObjectID(req.params._id) }).then((result) => {
+        query.getDocument(COLLECTION, { _id: new MongoDB.ObjectID(req.params._id) }).then((result) => {
             res.json(result);
         }).catch(err => console.error(err));
     });
@@ -69,7 +71,7 @@ router.post('/register', (req, res, next) => {
                     let date = new Date();
                     let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
 
-                    users.insertDocument("users", {
+                    query.insertDocument(COLLECTION, {
                         username: form_data.username,
                         password: hash,
                         is_admin: 0,
@@ -105,7 +107,7 @@ router.post('/login', (req, res) => {
         password: req.body.password
     };
 
-    users.getDocument("users", { username: form_data.username }).then((user) => {
+    users.getDocument(COLLECTION, { username: form_data.username }).then((user) => {
         if (user) {
             if (bcrypt.compareSync(form_data.password, user.password)) {
                 // Generate token
@@ -115,7 +117,7 @@ router.post('/login', (req, res) => {
                 let date = new Date();
                 let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
 
-                users.updateDocument("users", { username: form_data.username }, { date_last_login: currentDate }).then(() => {
+                query.updateDocument(COLLECTION, { username: form_data.username }, { date_last_login: currentDate }).then(() => {
                     console.log(`Login from user '${user.username}'`);
                     res.send(token);
                 }).catch(() => res.status(400).send("Error: Unable to login."));
@@ -139,7 +141,7 @@ router.post('/update/:username', (req, res) => {
         var decoded_token = jsonwebtoken.verify(req.headers['authorization'], process.env.SECRET_KEY);
 
         if (decoded_token.username === req.params.username) {
-            users.updateDocument("users", { username: req.params.username }, form_data).then(result => {
+            query.updateDocument(COLLECTION, { username: req.params.username }, form_data).then(result => {
                 console.log(`Updated info for user: ${req.params.username}`);
                 res.json(result);
             }).catch(() => res.status(400).send('Error: Unable to update user information.'));
@@ -155,7 +157,7 @@ router.post('/update/password/:username', (req, res) => {
 
         if (decoded_token.username === req.params.username) {
             bcrypt.hash(req.body.password, bcrypt.genSaltSync(10), (err, hash) => {
-                users.updateDocument("users", { username: req.params.username }, { password: hash }).then(result => {
+                query.updateDocument(COLLECTION, { username: req.params.username }, { password: hash }).then(result => {
                     console.log(`Updated info for user: ${req.params.username}`);
                     res.json(result);
                 }).catch(() => res.status(400).send('Error: Unable to update user information.'));
@@ -171,7 +173,7 @@ router.delete('/delete/:username', (req, res) => {
         var decoded_token = jsonwebtoken.verify(req.headers['authorization'], process.env.SECRET_KEY);
 
         if (decoded_token.username === req.params.username) {
-            users.deleteDocument("users", { username: req.params.username }).then(result => {
+            query.deleteDocument(COLLECTION, { username: req.params.username }).then(result => {
                 console.log(`Deleted user: ${req.params.username}`);
                 res.json({ status: `Deleted user: ${req.params.username}` });
             }).catch(() => res.status(400).send('Error: Unable to delete user.'));

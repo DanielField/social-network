@@ -1,12 +1,12 @@
 const jwt = require('jsonwebtoken');
-var users = require('./database/queries/users');
+var query = require('./database/queries');
 
 // Verify that the user is logged in.
 var confirmLoggedIn = async function(token) {
     if (token === null || token === undefined) return 0;
     try {
         var decoded_token = jwt.verify(token, process.env.SECRET_KEY);
-        var result = await users.getUsers({_id: decoded_token._id});
+        var result = await query.getDocuments("users",{_id: decoded_token._id});
         if (result) return 1;
     } catch(err) {
         console.log(err);
@@ -31,7 +31,7 @@ var confirmAdmin = async function(token) {
     if (token == null || token == undefined) return 0;
     try {
         var decoded_token = jwt.verify(token, process.env.SECRET_KEY);
-        var result = await users.getUsers({_id: decoded_token._id});
+        var result = await query.getDocuments("users", {_id: decoded_token._id});
         if (result) return (result[0].is_admin) ? 1 : 0;
     } catch(err) {
         console.log(err);

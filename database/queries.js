@@ -1,4 +1,4 @@
-const database = require('../database');
+const database = require('./database');
 
 /**
  * Get a list of documents. \
@@ -8,6 +8,8 @@ const database = require('../database');
  *  getDocuments({first_name: "bob"},{last_name: 1},10); // get 10 documents with first_name 'bob' sorted by last_name (asc).
  *  getDocuments(); // Get all documents
  * ```
+ * 
+ * @param {*} collection The name of the collection
  * @param {*} filter Filter documents by specific fields.
  * @param {*} sort Sort the results. Defaults to _id ascending.
  * @param {*} limit Limit the result count. (ignore limit parameter to get ALL documents that match the filter)
@@ -27,6 +29,7 @@ async function getDocuments(collection, filter, sort = { _id: 1 }, limit = Numbe
  *  getDocument({username: "bob"});
  * ```
  * 
+ * @param {*} collection The name of the collection
  * @param {*} filter Filter results by specific fields. 
  */
 async function getDocument(collection, filter) {
@@ -52,9 +55,10 @@ async function getDocument(collection, filter) {
  *  });
  * ```
  * 
+ * @param {*} collection The name of the collection
  * @param {*} document The document to be inserted into the collection.
  */
-async function insertDocument(document) {
+async function insertDocument(collection, document) {
     return database.handle(client => {
         return client.db("db0").collection(collection).insertOne(document);
     });
@@ -75,6 +79,7 @@ async function insertDocument(document) {
  *  });
  * ```
  * 
+ * @param {*} collection The name of the collection
  * @param {*} filter Filter documents by specified fields (Only the documents that match will be updated).
  * @param {*} updatedValues The new values to update the document.
  */
@@ -84,6 +89,12 @@ async function updateDocument(collection, filter, updatedValues) {
     });
 }
 
+/**
+ * Delete a document.
+ * 
+ * @param {*} collection The name of the collection
+ * @param {*} filter Filter documents by specified fields (Only the documents that match will be deleted).
+ */
 async function deleteDocument(collection, filter) {
     return database.handle(client => {
         return client.db("db0").collection(collection).deleteOne(filter);
