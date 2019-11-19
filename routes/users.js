@@ -3,7 +3,9 @@ var cors = require('cors');
 var bcrypt = require('bcrypt');
 var jsonwebtoken = require('jsonwebtoken');
 var authenticate = require('../authenticate');
-var database = require('../database');
+var database = require('../database/database');
+var users = require('../database/queries/users');
+var MongoDB = require('mongodb');
 
 var router = express.Router();
 
@@ -13,32 +15,32 @@ router.use(cors());
 // This should be changed to something less obvious
 process.env.SECRET_KEY = 'secret';
 
-const SELECT_ALL = "SELECT * FROM users;";
-
 /* GET users listing. */
 router.get('/', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        database.query(SELECT_ALL, (err, result) => {
-            res.send(result);
-        });
+        users.getUsers().then((result) => {
+            console.log(result);
+            res.json(result);
+        }).catch(err => console.error(err));
     });
 });
 
 /* GET user by username. */
 router.get('/:username', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        database.query(`SELECT * FROM users WHERE username='${req.params.username}';`, (err, result) => {
-            res.send(result);
-        });
+        users.getUser({username: req.params.username}).then((result) => {
+            console.log(result);
+            res.json(result);
+        }).catch(err => console.error(err));
     });
 });
 
 /* GET user by ID. */
-router.get('/id/:user_id', (req, res) => {
+router.get('/id/:_id', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        database.query(`SELECT * FROM users WHERE user_id='${req.params.user_id}';`, (err, result) => {
-            res.send(result);
-        });
+        users.getUser({ _id: new MongoDB.ObjectID(req.params._id) }).then((result) => {
+            res.json(result);
+        }).catch(err => console.error(err));
     });
 });
 
@@ -55,40 +57,41 @@ router.post('/register', (req, res, next) => {
         last_name: req.body.last_name
     };
 
-    database.query(`SELECT user_id FROM users WHERE username='${form_data.username}';`, (err, result) => {
-        if (err) {
-            res.status(500).send(err);
-            console.log(err);
-            return;
-        }
+    users.getUser({username: form_data.username}).then((result) => {
         console.log(result);
-        if (result.length > 0) {
-            res.status(400).send('Error: User already exists');
-            return;
+        if (result) {
+            res.status(400).json({Error:'User already exists'});
         } else {
             bcrypt.hash(form_data.password, bcrypt.genSaltSync(10), (err, hash) => {
                 if (err) {
-                    res.status(400).send('Error: Failed to set password');
-                    return;
+                    res.status(400).json({Error: 'Failed to set password'});
+                } else {
+                    let date = new Date();
+                    let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
+    
+                    users.insertUser({
+                        username: form_data.username, 
+                        password: hash, 
+                        is_admin: 0, 
+                        date_created: currentDate, 
+                        date_last_login: currentDate,
+                        first_name: form_data.first_name,
+                        last_name: form_data.last_name
+                    }).then(insertionResult => {
+                        console.log(`Inserted ${insertionResult.insertedId}`);
+
+                        let insertedData = insertionResult.ops;
+                        // Append ID field to the object
+                        insertedData["_id"] = insertionResult.insertedId;
+
+                        res.json(insertionResult.ops);
+                    }).catch(insertionError => {
+                        console.error(insertionError);
+                    });
                 }
-
-                let date = new Date();
-                let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
-
-                let query = "INSERT INTO users (username,password,is_admin,date_created,date_last_login,first_name,last_name) " +
-                    `VALUES ('${form_data.username}','${hash}',0,'${currentDate}','${currentDate}','${form_data.first_name}','${form_data.last_name}');`;
-
-                database.query(query, (err, result) => {
-                    if (err) {
-                        res.status(400).send('Error: Unable to create user');
-                        return;
-                    }
-
-                    res.json({ status: form_data.username + ' registered' });
-                });
             });
         }
-    });
+    }).catch(err => console.error(err));
 });
 
 router.post('/login', (req, res) => {
@@ -102,16 +105,9 @@ router.post('/login', (req, res) => {
         password: req.body.password
     };
 
-    database.query(`SELECT * FROM users WHERE username='${form_data.username}'`, (err, result) => {
-        if (err) {
-            res.status(400).send("Error: Unable to login.");
-            return;
-        }
-
-        if (result.length > 0) {
-            if (bcrypt.compareSync(form_data.password, result[0].password)) {
-                let user = Object.assign({}, result[0]);
-
+    users.getUser({username: form_data.username}).then((user) => {
+        if (user) {
+            if (bcrypt.compareSync(form_data.password, user.password)) {
                 // Generate token
                 let token = jsonwebtoken.sign(user, process.env.SECRET_KEY, { expiresIn: '7d' });
 
@@ -119,65 +115,52 @@ router.post('/login', (req, res) => {
                 let date = new Date();
                 let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
 
-                // update date_last_login
-                database.query(`UPDATE users SET date_last_login='${currentDate}' WHERE username='${form_data.username}';`, (err, result) => {
-                    if (err) {
-                        res.status(400).send("Error: Unable to set date_last_login to current date.");
-                    }
-                });
-
-                console.log(`Login from user '${user.username}'`);
-
-                // send user token
-                res.send(token);
+                users.updateUser({username: form_data.username}, {date_last_login: currentDate}).then(() => {
+                    console.log(`Login from user '${user.username}'`);
+                    res.send(token);
+                }).catch(() => res.status(400).send("Error: Unable to login."));
             } else {
                 res.status(400).send('Error: Invalid credentials.');
             }
         } else {
             res.status(400).send("Error: Invalid credentials.");
-            return;
         }
-    });
+    }).catch(() => res.status(400).send("Error: Unable to login."));
 });
 
-router.post('/update', (req, res) => {
+router.post('/update/:username', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        if (Object.keys(req.body).length === 0) {
-            res.status(400).send("Invalid POST request.");
-            return;
-        }
-
         let form_data = {
-            user_id: req.body.user_id,
             username: req.body.username,
             first_name: req.body.first_name,
             last_name: req.body.last_name
         };
 
-        database.query(`UPDATE users SET username='${form_data.username}',first_name='${form_data.first_name}',last_name='${form_data.last_name}' WHERE user_id='${form_data.user_id}';`, (err, result) => {
-            if (err) {
-                res.status(400).send('Error: Unable to update user information.');
-            } else {
-                console.log(`Updated info for user: ${form_data.user_id}`);
-                res.send(`Updated user info for user ${form_data.user_id} (${form_data.username})`);
-            }
-        });
+        users.updateUser({username: req.params.username}, form_data).then(result => {
+            console.log(`Updated info for user: ${req.params.username}`);
+            res.json(result);
+        }).catch(() => res.status(400).send('Error: Unable to update user information.'));
     });
 });
 
-router.delete('/delete/:user_id', (req, res) => {
+router.post('/update/password/:username', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        database.query(`DELETE FROM users WHERE user_id='${req.params.user_id}';`, (err, result) => {
-            if (err) {
-                res.status(400).send('Error: Unable to delete user.');
-            } else {
-                console.log(`Deleted user: ${req.params.user_id}`);
-                res.send(`Deleted user ${req.params.user_id}`);
-            }
+        bcrypt.hash(req.body.password, bcrypt.genSaltSync(10), (err, hash) => {
+            users.updateUser({username: req.params.username}, {password: hash}).then(result => {
+                console.log(`Updated info for user: ${req.params.username}`);
+                res.json(result);
+            }).catch(() => res.status(400).send('Error: Unable to update user information.'));
         });
     });
 });
 
-// TODO: change password route
+router.delete('/delete/:username', (req, res) => {
+    authenticate.doIfLoggedIn(req, res, () => {
+        users.deleteUser({username: req.params.username}).then(result => {
+            console.log(`Deleted user: ${req.params.username}`);
+            res.json({status: `Deleted user: ${req.params.username}`});
+        }).catch(() => res.status(400).send('Error: Unable to delete user.'));
+    });
+});
 
 module.exports = router;
