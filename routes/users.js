@@ -1,3 +1,16 @@
+/**
+ * fields:
+ *      _id (unique key)
+ *      username (string)
+ *      password (hash string)
+ *      is_admin (boolean)
+ *      date_created (date)
+ *      date_last_login (date)
+ *      first_name (string)
+ *      last_name (string)
+ * 
+ */
+
 var express = require('express');
 var cors = require('cors');
 var bcrypt = require('bcrypt');
@@ -97,6 +110,7 @@ router.post('/register', (req, res, next) => {
 });
 
 router.post('/login', (req, res) => {
+    console.log('login');
     if (Object.keys(req.body).length === 0) {
         res.status(400).send("Invalid POST request.");
         return;
@@ -107,7 +121,7 @@ router.post('/login', (req, res) => {
         password: req.body.password
     };
 
-    users.getDocument(COLLECTION, { username: form_data.username }).then((user) => {
+    query.getDocument(COLLECTION, { username: form_data.username }).then((user) => {
         if (user) {
             if (bcrypt.compareSync(form_data.password, user.password)) {
                 // Generate token

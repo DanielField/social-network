@@ -1,3 +1,10 @@
+/**
+ * Fields:
+ *      _id (unique key)
+ *      usernames (array containing two usernames)
+ * 
+ */
+
 var express = require('express');
 var cors = require('cors');
 var jsonwebtoken = require('jsonwebtoken');

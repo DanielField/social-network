@@ -1,3 +1,20 @@
+/**
+ * Fields:
+ *    _id (unique key)
+ *    content (string)
+ *    likes (array)
+ *    dislikes (array)
+ *    date_posted (date)
+ *    username (string)
+ *    edited (boolean)
+ *    replies (array) contains objects with the following fields:
+ *         id (unique key)
+ *         username (string)
+ *         content (string)
+ *         date_posted (date)
+ *         edited (boolean)
+ */
+
 var express = require('express');
 var jwt = require('jsonwebtoken');
 var query = require('../database/queries');
