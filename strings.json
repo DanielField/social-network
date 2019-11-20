@@ -1,8 +1,0 @@
-{
-    "server": {
-        "uri": "mongodb+srv://dev:exTyPB9ZF8GdcPEm@cluster0-w4juk.mongodb.net/test?retryWrites=true&w=majority",
-        "databases": [
-            "db0"
-        ]
-    }
-}
