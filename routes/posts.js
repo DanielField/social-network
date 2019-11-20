@@ -43,6 +43,7 @@ router.post('/create', (req, res) => {
             dislikes: [],
             date_posted: currentDate,
             username: (jwt.verify(req.headers['authorization'], process.env.SECRET_KEY)).username,
+            edited: false,
             replies: []
         }).then((result) => {
             console.log(result);
@@ -62,7 +63,8 @@ router.post('/update/:_id', (req, res) => {
         query.getDocument(COLLECTION, { _id: MongoDB.ObjectID(req.params._id) }).then(post => {
             if (decoded_token.username === post.username) {
                 query.updateDocument(COLLECTION, { _id: MongoDB.ObjectID(req.params._id) }, {
-                    content: req.body.content
+                    content: req.body.content,
+                    edited: true
                 }).then(result => {
                     console.log(`Updated post for user: ${post.username}`);
                     res.json(result);
@@ -205,12 +207,102 @@ router.post('/create/:_id', (req, res) => {
         let currentDate = date.getFullYear().toString() + '-' + (date.getMonth() + 1) + '-' + date.getDate().toString();
 
         query.getDocument(COLLECTION, { _id: MongoDB.ObjectID(req.params._id) }).then(post => {
+            let idOfLastReply =  (post.replies.length) > 0? post.replies[post.replies.length-1].id : 0;
             query.updateDocument(COLLECTION, { _id: MongoDB.ObjectID(req.params._id) }, {
-                replies: [...post.replies, {username: decoded_token.username, content: req.body.content, date_posted: currentDate}]
+                replies: [...post.replies, {
+                    id: idOfLastReply+1, 
+                    username: decoded_token.username, 
+                    content: req.body.content, 
+                    date_posted: currentDate,
+                    edited: false
+                }]
             }).then(result => {
                 console.log(`Updated post for user: ${post.username}`);
                 res.json(result);
             }).catch(() => res.status(400).send('Error: Unable to update post.'));
+        }).catch(() => res.status(400).send('Error: Post does not exist.'));
+    });
+});
+
+/* Delete reply by ID */
+router.delete('/reply/delete/:_id/:id', (req, res) => {
+    // TODO: When the last reply is deleted, if a new reply is made, it will have the ID of the deleted reply. \
+    // That may cause issues where a user may delete the wrong reply because their browser hasn't updated the replies in time. Fix this.
+    authenticate.doIfLoggedIn(req, res, () => {
+
+        var decoded_token = jwt.verify(req.headers['authorization'], process.env.SECRET_KEY);
+
+        query.getDocument(COLLECTION, { _id: MongoDB.ObjectID(req.params._id) }).then(post => {
+                let replyIndex = -1;
+
+                for (let i = 0; i < post.replies.length; i++) {
+                    if (post.replies[i].id == req.params.id) {
+                        // Check whether the user has permission to delete this reply
+                        if (post.replies[i].username === decoded_token.username || post.username === decoded_token.username) {
+                            replyIndex = i;
+                            break;
+                        } else {
+                            res.status(403).send('Error: You do not have permission to delete this reply.');
+                            return;
+                        }
+                    }
+                }
+
+                if (replyIndex > -1) {
+                    let newReplies = post.replies;
+                    newReplies.splice(replyIndex, 1);
+    
+                    query.updateDocument(COLLECTION, { _id: MongoDB.ObjectID(req.params._id) }, {
+                        replies: newReplies
+                    }).then(result => {
+                        console.log(`Deleted reply ${req.params._id}/${req.params.id}`);
+                        res.json(result);
+                    }).catch(() => res.status(400).send('Error: Unable to delete reply.'));
+                } else {
+                    res.status(400).send('Error: Reply does not exist.');
+                }
+        }).catch(() => res.status(400).send('Error: Post does not exist.'));
+    });
+});
+
+/* Update reply by ID */
+router.post('/reply/update/:_id/:id', (req, res) => {
+    authenticate.doIfLoggedIn(req, res, () => {
+
+        var decoded_token = jwt.verify(req.headers['authorization'], process.env.SECRET_KEY);
+
+        query.getDocument(COLLECTION, { _id: MongoDB.ObjectID(req.params._id) }).then(post => {
+                let replyIndex = -1;
+
+                for (let i = 0; i < post.replies.length; i++) {
+                    if (post.replies[i].id == req.params.id) {
+                        // Check whether the user has permission to update this reply
+                        if (post.replies[i].username === decoded_token.username || post.username === decoded_token.username) {
+                            replyIndex = i;
+                            break;
+                        } else {
+                            res.status(403).send('Error: You do not have permission to update this reply.');
+                            return;
+                        }
+                    }
+                }
+
+                if (replyIndex > -1) {
+                    let newReplies = post.replies;
+                    let reply = newReplies[replyIndex];
+                    reply.content = req.body.content;
+                    reply.edited = true;
+                    newReplies.splice(replyIndex, 1, reply);
+    
+                    query.updateDocument(COLLECTION, { _id: MongoDB.ObjectID(req.params._id) }, {
+                        replies: newReplies
+                    }).then(result => {
+                        console.log(`Updated reply ${req.params._id}/${req.params.id}`);
+                        res.json(result);
+                    }).catch(() => res.status(400).send('Error: Unable to update reply.'));
+                } else {
+                    res.status(400).send('Error: Reply does not exist.');
+                }
         }).catch(() => res.status(400).send('Error: Post does not exist.'));
     });
 });
