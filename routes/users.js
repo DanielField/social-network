@@ -133,15 +133,15 @@ router.post('/login', (req, res) => {
 
                 query.updateDocument(COLLECTION, { username: form_data.username }, { date_last_login: currentDate }).then(() => {
                     console.log(`Login from user '${user.username}'`);
-                    res.send(token);
-                }).catch(() => res.status(400).send("Error: Unable to login."));
+                    res.json({usertoken: token});
+                }).catch(() => res.status(400).json({error: "Unable to login."}));
             } else {
-                res.status(400).send('Error: Invalid credentials.');
+                res.status(400).json({error: "Invalid credentials."});
             }
         } else {
-            res.status(400).send("Error: Invalid credentials.");
+            res.status(400).json({error: "Invalid credentials."});
         }
-    }).catch(() => res.status(400).send("Error: Unable to login."));
+    }).catch(() => res.status(400).json({error: "Unable to login."}));
 });
 
 router.post('/update/:username', (req, res) => {
