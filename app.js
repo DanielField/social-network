@@ -12,6 +12,8 @@ var followersRouter = require('./routes/followers');
 
 var app = express();
 
+process.env.PORT = 3001;
+
 // view engine setup
 app.set('views', path.join(__dirname, 'views'));
 app.set('view engine', 'ejs');
