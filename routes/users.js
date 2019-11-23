@@ -72,7 +72,7 @@ router.post('/register', (req, res, next) => {
         last_name: req.body.last_name
     };
 
-    users.getDocument({ username: form_data.username }).then((result) => {
+    query.getDocument(COLLECTION, { username: form_data.username }).then((result) => {
         console.log(result);
         if (result) {
             res.status(400).json({ Error: 'User already exists' });

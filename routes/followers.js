@@ -27,7 +27,7 @@ router.get('/', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
         var decoded_token = jsonwebtoken.verify(req.headers['authorization'], process.env.SECRET_KEY);
         query.getDocuments(COLLECTION, { "usernames.0": decoded_token.username }).then(followers => {
-            res.send(followers);
+            res.json(followers);
         });
     });
 });
