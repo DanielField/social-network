@@ -41,7 +41,7 @@ router.get('/', (req, res) => {
 /* Get posts by username */
 router.get('/:username', (req, res) => {
     authenticate.doIfLoggedIn(req, res, () => {
-        query.getDocument(COLLECTION, { username: req.params.username }).then((result) => {
+        query.getDocuments(COLLECTION, { username: req.params.username }).then((result) => {
             console.log(result);
             res.json(result);
         }).catch(err => console.error(err));
